@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/markpash/flowlat/internal/clsact"
-	"github.com/markpash/flowlat/internal/tcp"
 
 	"github.com/cilium/ebpf/perf"
 	"github.com/vishvananda/netlink"
@@ -54,8 +53,7 @@ func Run(ctx context.Context, iface netlink.Link) error {
 		case <-ctx.Done():
 			return probe.Close()
 		case event := <-c:
-			packetAttributes := tcp.UnmarshalBinary(event)
-			tcp.CalcLatency(packetAttributes)
+      fmt.Printf("%v\n",event)
 		}
 	}
 }

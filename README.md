@@ -1,8 +1,3 @@
-# WIP: flowlat
+# WIP: pppoe mac spoofing
 
-This project aims to measure the latency of TCP connections
-(specifically SYN-SYN/ACK) to provide an alternative to plain ICMP ping
-monitoring.
-
-Flowlat makes use of eBPF for identifying packets on ingress and egress
-of the Linux networking stack.
+This is a experimental project using eBPF, aims to change the source mac address of pppoe frames. This is called source NAT (snat) or maybe mac spoofing.
