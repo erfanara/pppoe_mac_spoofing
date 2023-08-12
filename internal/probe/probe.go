@@ -3,6 +3,7 @@ package probe
 import (
 	"context"
 	"fmt"
+	"net"
 
 	"github.com/markpash/flowlat/internal/clsact"
 
@@ -22,12 +23,20 @@ type probe struct {
 }
 
 // Run runs the probe on the given interface.
-func Run(ctx context.Context, iface netlink.Link) error {
+func Run(ctx context.Context, iface netlink.Link, smac net.HardwareAddr) error {
 	probe, err := newProbe(iface)
 	if err != nil {
 		return err
 	}
 	defer probe.Close()
+
+	smacMap := probe.bpfObjects.Smac
+  for i := 0; i < 6; i++ {
+    err = smacMap.Put(uint32(i) , smac[i])
+    if err != nil {
+      return err
+    }
+  }
 
 	pipe := probe.bpfObjects.Pipe
 	rd, err := perf.NewReader(pipe, 10)
@@ -53,7 +62,7 @@ func Run(ctx context.Context, iface netlink.Link) error {
 		case <-ctx.Done():
 			return probe.Close()
 		case event := <-c:
-      fmt.Printf("%v\n",event)
+			fmt.Printf("%v\n", event)
 		}
 	}
 }

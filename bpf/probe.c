@@ -17,6 +17,23 @@ struct {
   __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
 } pipe SEC(".maps");
 
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __uint(key_size, sizeof(uint32_t));
+  __uint(value_size, sizeof(uint8_t));
+  __uint(max_entries, 6);
+} smac SEC(".maps");
+
+struct callback_ctx {
+  struct ethhdr *eth;
+};
+
+static __u64 copy_to_h_source(void *map, __u32 *key, __u8 *val,
+                              struct callback_ctx *data) {
+  data->eth->h_source[*key] = *val;
+  return 0;
+}
+
 SEC("classifier")
 int probe(struct __sk_buff *skb) {
   if (bpf_skb_pull_data(skb, 0) < 0) {
@@ -45,14 +62,17 @@ int probe(struct __sk_buff *skb) {
     return TC_ACT_OK;
   }
 
-  unsigned char new_mac[] = {176, 72, 122, 207, 172, 150};
-  memcpy(eth->h_source, new_mac, sizeof(new_mac));
+  // bpf_printk("%u:%u:%u:%u:%u:%u", eth->h_source[0],
+  //            eth->h_source[1], eth->h_source[2],
+  //            eth->h_source[3], eth->h_source[4],
+  //            eth->h_source[5]);
+  struct callback_ctx data;
+  data.eth = eth;
+  bpf_for_each_map_elem(&smac, copy_to_h_source, &data, 0);
 
-  uint64_t x = (uint64_t)eth->h_source;
-  if (bpf_perf_event_output(skb, &pipe, BPF_F_CURRENT_CPU, &x,
-                            sizeof(uint64_t)) < 0) {
-    return TC_ACT_OK;
-  }
+  // bpf_perf_event_output(skb, &pipe, BPF_F_CURRENT_CPU, &x, 6 *
+  // sizeof(uint8_t));
+
   return TC_ACT_OK;
 }
 

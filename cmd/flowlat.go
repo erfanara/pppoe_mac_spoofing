@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 
@@ -15,9 +16,15 @@ import (
 
 func main() {
 	ifaceStr := flag.String("iface", "eth0", "interface to attach the probe to")
+  smacStr := flag.String("mac","00:00:00:00:00:00", "source mac address of spoofed pppoe frames")
 	flag.Parse()
 
 	iface, err := netlink.LinkByName(*ifaceStr)
+	if err != nil {
+		panic(err)
+	}
+
+  hwAddr ,err := net.ParseMAC(*smacStr)
 	if err != nil {
 		panic(err)
 	}
@@ -35,7 +42,7 @@ func main() {
 		cancel()
 	}()
 
-	if err := probe.Run(ctx, iface); err != nil {
+	if err := probe.Run(ctx, iface, hwAddr); err != nil {
 		panic(err)
 	}
 }
