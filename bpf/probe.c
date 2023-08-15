@@ -30,7 +30,9 @@ struct callback_ctx {
 
 static __u64 copy_to_h_source(void *map, __u32 *key, __u8 *val,
                               struct callback_ctx *data) {
+  if (*key < 6) {
   data->eth->h_source[*key] = *val;
+  }
   return 0;
 }
 

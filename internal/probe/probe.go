@@ -2,17 +2,19 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 
 	"github.com/markpash/flowlat/internal/clsact"
 
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/perf"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc clang probe ../../bpf/probe.c -- -O3 -Wall -Werror -Wno-address-of-packed-member
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc clang probe ../../bpf/probe.c -- -O2 -g -Wall -Werror -Wno-address-of-packed-member
 
 type probe struct {
 	iface      netlink.Link
@@ -31,12 +33,12 @@ func Run(ctx context.Context, iface netlink.Link, smac net.HardwareAddr) error {
 	defer probe.Close()
 
 	smacMap := probe.bpfObjects.Smac
-  for i := 0; i < 6; i++ {
-    err = smacMap.Put(uint32(i) , smac[i])
-    if err != nil {
-      return err
-    }
-  }
+	for i := 0; i < 6; i++ {
+		err = smacMap.Put(uint32(i), smac[i])
+		if err != nil {
+			return err
+		}
+	}
 
 	pipe := probe.bpfObjects.Pipe
 	rd, err := perf.NewReader(pipe, 10)
@@ -159,7 +161,19 @@ func (p *probe) createFilters() error {
 
 func (p *probe) loadObjects() error {
 	objs := probeObjects{}
-	if err := loadProbeObjects(&objs, nil); err != nil {
+	if err := loadProbeObjects(
+		&objs,
+		&ebpf.CollectionOptions{
+			Maps:     ebpf.MapOptions{},
+			Programs: ebpf.ProgramOptions{LogLevel: (ebpf.LogLevelInstruction | ebpf.LogLevelBranch | ebpf.LogLevelStats)},
+		},
+	); err != nil {
+		var ve *ebpf.VerifierError
+		if errors.As(err, &ve) {
+			// Using %+v will print the whole verifier error, not just the last
+			// few lines.
+			fmt.Printf("Verifier error: %+v\n", ve)
+		}
 		return err
 	}
 	p.bpfObjects = &objs
