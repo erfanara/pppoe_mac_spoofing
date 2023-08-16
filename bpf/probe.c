@@ -24,17 +24,17 @@ struct {
   __uint(max_entries, 6);
 } smac SEC(".maps");
 
-struct callback_ctx {
-  struct ethhdr *eth;
-};
-
-static __u64 copy_to_h_source(void *map, __u32 *key, __u8 *val,
-                              struct callback_ctx *data) {
-  if (*key < 6) {
-  data->eth->h_source[*key] = *val;
-  }
-  return 0;
-}
+// struct callback_ctx {
+//   unsigned char *h_source;
+// };
+//
+// static __u64 copy_to_h_source(void *map, __u32 *key, __u8 *val,
+//                               struct callback_ctx *data) {
+//   if (*key < ETH_ALEN) {
+//     data->h_source[*key] = *val;
+//   }
+//   return 0;
+// }
 
 SEC("classifier")
 int probe(struct __sk_buff *skb) {
@@ -44,33 +44,54 @@ int probe(struct __sk_buff *skb) {
 
   uint8_t *head = (uint8_t *)(long)skb->data;
   uint8_t *tail = (uint8_t *)(long)skb->data_end;
+  struct ethhdr *eth = (struct ethhdr *)head;
 
   if (head + sizeof(struct ethhdr) > tail) {
     return TC_ACT_OK;
   }
-
-  struct ethhdr *eth = (struct ethhdr *)head;
-
-  uint32_t offset;
 
   if (eth->h_proto != bpf_htons(ETH_P_PPP_SES) &&
       eth->h_proto != bpf_htons(ETH_P_PPP_DISC)) {
     return TC_ACT_OK;
   }
 
-  offset = sizeof(struct ethhdr);
-
-  if (head + offset > tail) {
-    return TC_ACT_OK;
-  }
-
-  // bpf_printk("%u:%u:%u:%u:%u:%u", eth->h_source[0],
-  //            eth->h_source[1], eth->h_source[2],
-  //            eth->h_source[3], eth->h_source[4],
+  // bpf_printk("%u:%u:%u:%u:%u:%u", eth->h_source[0], eth->h_source[1],
+  //            eth->h_source[2], eth->h_source[3], eth->h_source[4],
   //            eth->h_source[5]);
-  struct callback_ctx data;
-  data.eth = eth;
-  bpf_for_each_map_elem(&smac, copy_to_h_source, &data, 0);
+
+  // struct callback_ctx data;
+  // data.h_source = eth->h_source;
+  // bpf_for_each_map_elem(&smac, copy_to_h_source, &data, 0);
+
+  uint32_t key = 0;
+  uint8_t *valp;
+  valp = bpf_map_lookup_elem(&smac, &key);
+  if (valp)
+    eth->h_source[0] = *valp;
+  key++;
+  valp = bpf_map_lookup_elem(&smac, &key);
+  if (valp)
+    eth->h_source[1] = *valp;
+  key++;
+  valp = bpf_map_lookup_elem(&smac, &key);
+  if (valp)
+    eth->h_source[2] = *valp;
+  key++;
+  valp = bpf_map_lookup_elem(&smac, &key);
+  if (valp)
+    eth->h_source[3] = *valp;
+  key++;
+  valp = bpf_map_lookup_elem(&smac, &key);
+  if (valp)
+    eth->h_source[4] = *valp;
+  key++;
+  valp = bpf_map_lookup_elem(&smac, &key);
+  if (valp)
+    eth->h_source[5] = *valp;
+
+  // bpf_printk("%u:%u:%u:%u:%u:%u", eth->h_source[0], eth->h_source[1],
+  //            eth->h_source[2], eth->h_source[3], eth->h_source[4],
+  //            eth->h_source[5]);
 
   // bpf_perf_event_output(skb, &pipe, BPF_F_CURRENT_CPU, &x, 6 *
   // sizeof(uint8_t));
